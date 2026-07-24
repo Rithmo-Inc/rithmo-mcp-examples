@@ -10,6 +10,9 @@ never takes actions in your systems.
 It speaks the [Model Context Protocol](https://modelcontextprotocol.io), so it works with
 [n8n](./n8n/), AI agents, and anything else that speaks MCP.
 
+> **New here? Start with the [Integration Guide](./INTEGRATION.md)** — what it is, how to get
+> access, how to connect, and the full tool reference.
+
 ## Run it in a few minutes
 
 ```bash
