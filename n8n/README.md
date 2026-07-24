@@ -28,9 +28,10 @@ Store the token in an n8n **credential**, not inline. The node's tool list shoul
 
 - MCP Client → **Tool:** `query_decision`, **Input Mode:** JSON,
   parameters: `{ "question": "{{ $json.question }}" }` (optional `type`, `owner`, `area`).
-- IF node → condition: `{{ $json.result }}` **equals** `found`.
-- `found` branch: use `answer`, `status`, `owner`, `source`. `no_record` branch: pause,
-  route to a human, or use a safe default.
+- IF node → condition: `{{ $json.structuredContent.result }}` **equals** `found`.
+  (The MCP Client node returns the tool result under **`structuredContent`**.)
+- `found` branch: use `{{ $json.structuredContent.answer }}`, `.status`, `.owner`, `.source`.
+  `no_record` branch: pause, route to a human, or use a safe default.
 
 **3. Pattern B — react to decisions changing**
 
@@ -40,7 +41,9 @@ Store the token in an n8n **credential**, not inline. The node's tool list shoul
 
 - MCP Client → **Tool:** `list_decision_changes`, parameters:
   `{ "since": "{{ $json.cursor }}", "limit": 100 }`. On the first run omit `since` (returns
-  a "from now" watermark). Loop while `has_more` is true.
+  a "from now" watermark). The feed output is under `structuredContent` — the changes are
+  `{{ $json.structuredContent.changes }}`, and loop while `{{ $json.structuredContent.has_more }}`
+  is true.
 - Persist `cursor` between runs in workflow static data:
   ```js
   // before the MCP Client node
@@ -50,7 +53,7 @@ Store the token in an n8n **credential**, not inline. The node's tool list shoul
   ```js
   // after processing, from the MCP Client node's output
   const s = $getWorkflowStaticData('global');
-  s.mcpCursor = $input.first().json.cursor;
+  s.mcpCursor = $input.first().json.structuredContent.cursor;
   return $input.all();
   ```
 
@@ -59,8 +62,8 @@ Store the token in an n8n **credential**, not inline. The node's tool list shoul
 [`query_decision.workflow.json`](./query_decision.workflow.json) is a starter workflow for
 Pattern A.
 
-> ⚠️ **Verify on import.** This JSON is a convenience template. The MCP Client node's exact
-> parameter names/versions vary between n8n releases, and the auth credential must be
-> created in your own instance. If anything looks off after import, follow the manual setup
-> above — that's the source of truth. (This template has not yet been round-tripped through
-> a live n8n import; do that before relying on it.)
+> ✓ **Verified.** This workflow was imported **and executed** in n8n (built-in **MCP Client**
+> node, `@n8n/n8n-nodes-langchain.mcpClient` v1.1) against a live Rithmo MCP server — both the
+> `found` and `no_record` branches ran successfully. You still create the **HTTP Bearer Auth**
+> credential (holding your `rmcp_...` token) in your own n8n instance and select it on the
+> node; credentials never travel in a workflow export.

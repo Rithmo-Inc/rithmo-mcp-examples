@@ -1,5 +1,7 @@
 {
+  "id": "RithmoQueryDecision",
   "name": "Rithmo — query_decision before acting",
+  "active": false,
   "nodes": [
     {
       "parameters": {},
@@ -34,16 +36,26 @@
         "endpointUrl": "https://mcp.rithmo.ai/api/mcp",
         "serverTransport": "httpStreamable",
         "authentication": "bearerAuth",
-        "toolName": "query_decision",
+        "tool": {
+          "mode": "list",
+          "value": "query_decision",
+          "cachedResultName": "query_decision"
+        },
         "inputMode": "json",
-        "toolParameters": "={{ { \"question\": $json.question } }}"
+        "jsonInput": "={{ { \"question\": $json.question } }}"
       },
       "id": "a1000000-0000-4000-8000-000000000003",
       "name": "Rithmo: query_decision",
-      "type": "n8n-nodes-langchain.mcpClient",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
       "position": [720, 300],
-      "notes": "Set Bearer credential to your rmcp_... token. Verify param names on import — see n8n/README.md."
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Rithmo MCP token"
+        }
+      },
+      "notes": "Create an HTTP Bearer Auth credential holding your rmcp_... token and select it here."
     },
     {
       "parameters": {
@@ -52,7 +64,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.result }}",
+              "leftValue": "={{ $json.structuredContent.result }}",
               "rightValue": "found",
               "operator": { "type": "string", "operation": "equals" }
             }
@@ -85,7 +97,7 @@
     },
     {
       "parameters": {
-        "content": "## Rithmo: query_decision before acting\n\n1. In **Rithmo: query_decision**, set the MCP Endpoint URL and a **Bearer** credential with your `rmcp_...` token (Server Transport = HTTP Streamable).\n2. The **IF** node branches on `result == \"found\"`.\n3. Replace the two NoOp nodes with your real actions.\n\n⚠️ Verify the MCP Client node's parameter names on import — they vary by n8n version. See n8n/README.md.",
+        "content": "## Rithmo: query_decision before acting\n\n1. In **Rithmo: query_decision**, set the MCP Endpoint URL and an **HTTP Bearer Auth** credential holding your `rmcp_...` token (Server Transport = HTTP Streamable).\n2. The **IF** node branches on `{{ $json.structuredContent.result }} == \"found\"`.\n3. Replace the two NoOp nodes with your real actions.\n\n✓ Verified: imported and executed in n8n (both branches). See n8n/README.md.",
         "height": 260,
         "width": 380
       },
