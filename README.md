@@ -13,7 +13,7 @@ It speaks the [Model Context Protocol](https://modelcontextprotocol.io), so it w
 ## Run it in a few minutes
 
 ```bash
-git clone https://github.com/rithmo/rithmo-mcp-examples
+git clone https://github.com/Rithmo-Inc/rithmo-mcp-examples
 cd rithmo-mcp-examples
 npm install
 cp .env.example .env      # then edit .env
