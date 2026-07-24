@@ -1,0 +1,18 @@
+{
+  "name": "rithmo-mcp-examples",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable examples for Rithmo's read-only MCP server — query your decision record before you act.",
+  "scripts": {
+    "query": "node examples/query_decision.mjs",
+    "no-record": "node examples/no_record.mjs",
+    "changes": "node examples/list_decision_changes.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

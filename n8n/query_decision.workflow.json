@@ -1,0 +1,112 @@
+{
+  "name": "Rithmo — query_decision before acting",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "When clicking Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "q1",
+              "name": "question",
+              "value": "Are we still shipping the new onboarding flow?",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Set question",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "endpointUrl": "https://mcp.rithmo.ai/api/mcp",
+        "serverTransport": "httpStreamable",
+        "authentication": "bearerAuth",
+        "toolName": "query_decision",
+        "inputMode": "json",
+        "toolParameters": "={{ { \"question\": $json.question } }}"
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Rithmo: query_decision",
+      "type": "n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1,
+      "position": [720, 300],
+      "notes": "Set Bearer credential to your rmcp_... token. Verify param names on import — see n8n/README.md."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.result }}",
+              "rightValue": "found",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "IF decision found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Proceed (act on the decision)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "no_record (pause / ask a human)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "content": "## Rithmo: query_decision before acting\n\n1. In **Rithmo: query_decision**, set the MCP Endpoint URL and a **Bearer** credential with your `rmcp_...` token (Server Transport = HTTP Streamable).\n2. The **IF** node branches on `result == \"found\"`.\n3. Replace the two NoOp nodes with your real actions.\n\n⚠️ Verify the MCP Client node's parameter names on import — they vary by n8n version. See n8n/README.md.",
+        "height": 260,
+        "width": 380
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [260, 460]
+    }
+  ],
+  "connections": {
+    "When clicking Test": { "main": [[{ "node": "Set question", "type": "main", "index": 0 }]] },
+    "Set question": { "main": [[{ "node": "Rithmo: query_decision", "type": "main", "index": 0 }]] },
+    "Rithmo: query_decision": { "main": [[{ "node": "IF decision found", "type": "main", "index": 0 }]] },
+    "IF decision found": {
+      "main": [
+        [{ "node": "Proceed (act on the decision)", "type": "main", "index": 0 }],
+        [{ "node": "no_record (pause / ask a human)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": { "templatecredsSetupCompleted": false }
+}
