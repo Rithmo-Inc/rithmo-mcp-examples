@@ -1,18 +1,33 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "ai.rithmo/decisions",
-  "title": "Rithmo — Decision Record",
-  "description": "Read-only access to your organization's decision record. Query what was decided before you act (query_decision), and subscribe to decisions changing state (list_decision_changes). Rithmo emits the record; your tools act on it.",
+  "name": "ai.rithmo/rithmo",
+  "title": "Rithmo",
+  "description": "AI agent governance with resolved business context, current decisions, provenance, and supersession.",
   "version": "0.1.0",
-  "websiteUrl": "https://rithmo.ai",
+  "websiteUrl": "https://rithmo.ai/mcp",
   "repository": {
     "url": "https://github.com/Rithmo-Inc/rithmo-mcp-examples",
     "source": "github"
   },
+  "icons": [
+    {
+      "src": "https://rithmo.ai/rithmo-mark.png",
+      "mimeType": "image/png"
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://mcp.rithmo.ai/api/mcp"
+      "url": "https://app.rithmo.ai/api/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer <token>, using the read-only per-organization Rithmo MCP service token issued to you. Requires the mcp:read scope.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
     }
   ]
 }

@@ -10,7 +10,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
-const RITHMO_MCP_URL = process.env.RITHMO_MCP_URL ?? 'https://mcp.rithmo.ai/api/mcp';
+const RITHMO_MCP_URL = process.env.RITHMO_MCP_URL ?? 'https://app.rithmo.ai/api/mcp';
 const RITHMO_MCP_TOKEN = process.env.RITHMO_MCP_TOKEN;
 if (!RITHMO_MCP_TOKEN) throw new Error('Set RITHMO_MCP_TOKEN (a Rithmo MCP service token).');
 
@@ -31,7 +31,17 @@ const feed = res.structuredContent;
 console.log(`\nchanges: ${feed.changes.length}   has_more: ${feed.has_more}`);
 console.log(`next cursor: ${feed.cursor}   ← pass this as the argument on the next poll`);
 for (const ch of feed.changes) {
-  console.log(`  [${ch.status}] ${ch.answer}  (changed ${ch.changed_at})`);
+  // `status` is WIDER here than in query_decision's `found`: reversals are changes too,
+  // so dropped/superseded appear in this feed and must be handled explicitly.
+  const reversal = ch.status === 'dropped' || ch.status === 'superseded';
+  console.log(`  [${ch.status}]${reversal ? ' ⟲ reversal' : ''} ${ch.answer}  (changed ${ch.changed_at})`);
+  if (ch.rationale) console.log(`      rationale: ${ch.rationale}`);
+  if (ch.conditions) console.log(`      conditions: ${ch.conditions}`);
 }
+
+// has_more is simply "the page was full", so an exactly-full final page means one more
+// call returns zero changes. That is how the drain terminates, not an error. When a page
+// returns no rows the cursor is echoed back unchanged, so re-polling is idempotent.
+if (feed.has_more) console.log('\nhas_more=true — call again with the cursor above to drain the rest.');
 
 await client.close();

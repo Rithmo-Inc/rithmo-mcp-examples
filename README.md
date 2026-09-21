@@ -24,10 +24,11 @@ cp .env.example .env      # then edit .env
 
 Set two values in `.env`:
 
-- `RITHMO_MCP_URL` — the MCP endpoint of a Rithmo instance (Rithmo Cloud, or your
-  self-hosted address).
+- `RITHMO_MCP_URL` — the MCP endpoint of a Rithmo instance. Rithmo Cloud is
+  `https://app.rithmo.ai/api/mcp`; a self-hosted deployment exposes the same server at
+  your own address.
 - `RITHMO_MCP_TOKEN` — a per-organization Rithmo MCP service token (read-only, scoped to
-  one org).
+  one org, carrying the `mcp:read` scope).
 
 Then:
 
@@ -59,6 +60,16 @@ Q: Did we decide anything about office snacks?
    Branch here: pause the automation, route to a human, or use a safe default.
 ```
 
+A `no_record` may carry a **typed refusal** explaining *why* it is held:
+
+```
+Q: Are we still migrating to the new billing provider?
+∅ no_record — held (closed · superseded)
+   subject: Billing provider migration
+   held_because: That decision was superseded; acting on the old premise is unsafe.
+   safe_to_proceed: false
+```
+
 **`list_decision_changes`** — a cursor-drained feed of decisions changing state:
 
 ```
@@ -80,13 +91,35 @@ Look up the current authoritative decision for a natural-language question.
 |---|---|---|---|
 | `question` | string | yes | e.g. "Are we still shipping the new onboarding flow?" |
 | `type` | `action_item` \| `follow_up` \| `decision` | no | restrict to one type |
-| `owner` | string | no | restrict to a named owner |
+| `owner` | string | no | restrict to a named owner (substring match, case-insensitive) |
 | `area` | string | no | topical hint to bias retrieval |
+| `surface` | string | no | the external system this task concerns (e.g. `"jira"`, `"salesforce"`). When Rithmo does not observe that surface, a miss returns a typed `not_observed` instead of a bare `no_record` — absence on an unobserved surface is **unknown**, not "no". |
 
-**Output** — a discriminated union on `result`:
+**Output** — a discriminated union on `result` with **three** variants:
+`"found"`, `"found_record"`, and `"no_record"`.
+
+> ⚠️ **Do not write `result === "found" ? act : treat-as-no-record`.** `found_record` is a
+> real answer, and two-state branching silently routes valid answers into your no-record
+> path.
+>
+> But do not flip to `["found", "found_record"].includes(result)` either — that is also
+> wrong. A `found_record` can name a subject that is genuinely on record while carrying
+> **no answer text** (`subject.currentAnswer === null`). The correct rule gates on a
+> *usable answer*:
+>
+> ```js
+> const r = res.structuredContent;
+> const answer =
+>   r.result === 'found'        ? r.answer :
+>   r.result === 'found_record' ? r.subject.currentAnswer :
+>   null;
+> if (answer != null && String(answer).trim() !== '') { /* act */ }
+> else { /* hold — no answer to act on */ }
+> ```
+
+#### `result: "found"` — a live answer from the commitment ledger
 
 ```jsonc
-// result: "found"
 {
   "result": "found",
   "answer": "<verbatim decision text>",
@@ -96,17 +129,109 @@ Look up the current authoritative decision for a natural-language question.
   "source": { "state": "resolved", "system": "meeting|slack|github|...", "ref": "...", "url": "..." }, // or { "state": "unresolved" }
   "decided_at": "2026-07-19T15:04:00Z",
   "due_at": "2026-07-25T00:00:00Z",   // or null
+  "rationale":  "<the WHY behind the decision>",   // or null
+  "conditions": "<what it depends on>",            // or null
+  "director":   "<who assigned/directed it>",      // or null
+  "context":    { /* arbitrary payload */ },       // or null
+  "supersedes": {                                  // or null
+    "answer": "<the decision this one replaced>",
+    "decided_at": "2026-06-02T10:00:00Z",
+    "supersedes": null                             // recurses — walk it for the full chain
+  },
+  "spine": {                                       // or null; present when spine context resolves
+    "decision_id": "...",
+    "lifecycle_state": "<canonical live state>",
+    "verified": true,
+    "board_status": "..." ,                        // or null
+    "presence": [{ "provider": "github", "external_status": "...", "external_url": "..." }],
+    "related_count": 3
+  },
   "confidence": 0.71
 }
-
-// result: "no_record"
-{ "result": "no_record" }
 ```
 
+**`supersedes` is the supersession history.** It is a linked list, newest-first: each node
+is a prior decision this answer replaced, with its own `supersedes` pointer. Walk it to
+reconstruct how the answer changed over time (e.g. cloud → private env → customer
+servers). `null` means this decision superseded nothing. The chain is cycle-guarded and
+capped at 12 hops.
+
+#### `result: "found_record"` — a live answer from the subject record
+
+Returned when the subject record holds a current answer that the commitment ledger does
+not. **This is an answer, not a refusal.**
+
+```jsonc
+{
+  "result": "found_record",
+  "subject": {
+    "subjectId": "...",
+    "label": "<human-readable subject>",
+    "state": "<subject state>",
+    "currentAnswer": "<the current answer>"   // may be null
+  },
+  "observation": {                            // optional
+    "sinceMs": 1783606904319,
+    "claim": "<nothing observed since … bears on this subject>",
+    "surfaces": [
+      { "surface": "slack", "observedFromMs": 0, "observedThroughMs": 0, "basis": "..." }
+    ]
+  }
+}
+```
+
+The answer lives at `subject.currentAnswer`, **not** `answer`.
+
+**`currentAnswer` may be `null`, and that case is not actionable.** The subject is
+genuinely on record — Rithmo knows what you are asking about — but there is no answer text
+to act on. That is a meaningful signal (the subject exists, its answer does not), and it is
+distinct from `no_record`, which says Rithmo has no confident match at all. Either way you
+must **hold**: route a null-answer `found_record` down the same path as `no_record`.
+
+#### `result: "no_record"` — no confident answer
+
+```jsonc
+// bare form — no confident match, no refusal detail
+{ "result": "no_record" }
+
+// typed-refusal form — `record` explains WHY
+{
+  "result": "no_record",
+  "record": { /* one of the four shapes below */ }
+}
+```
+
+When present, `record.status` is one of:
+
+| `record.status` | meaning | extra fields |
+|---|---|---|
+| `closed` | the subject is settled and the premise is dead | `disposition`: `reversed` \| `abandoned` \| `superseded`; `subject` |
+| `no_record` | the record was consulted and genuinely has nothing | `reason` (string) |
+| `not_observed` | Rithmo does not observe the surface you asked about, so absence proves nothing | `unobserved_surfaces`: string[] |
+
+All three carry `premise_check`, and `closed`/`no_record`/`not_observed` may also carry an
+`observation.surfaces` array describing what was read and over what window.
+
+```jsonc
+"premise_check": {
+  "safe_to_proceed": false,
+  "held_because": "<why acting on this premise is unsafe>"
+}
+```
+
+**`premise_check.safe_to_proceed` is always `false` when the field is present.** It is not
+a boolean to evaluate — it is a marker that the answer is *held*, and `held_because` tells
+you why. Never proceed on a `no_record`, with or without a `premise_check`.
+
+One `reason` value is worth special handling: a `record.status: "no_record"` whose
+`reason` starts with `record_unavailable:` means the record could not be read (a transient
+failure). That is **not** "no record" and **not** "we decided no" — hold and retry.
+
 Notes:
-- **Deterministic answer.** For the same resolved decision, `answer` is byte-identical
-  every call (it's the record verbatim — no LLM in the response path). `confidence` is a
-  ranked-retrieval signal and may vary slightly; don't gate on its exact value.
+- **Deterministic answer.** For the same resolved decision, every `found` field except
+  `confidence` is byte-identical every call (it's the record verbatim — no LLM in the
+  response path). `confidence` is a ranked-retrieval signal and may vary slightly; don't
+  gate on its exact value.
 - **`owner` and `source` are discriminated states**, never bare nulls — `unowned` and
   `unresolved` are real, meaningful answers your code can branch on.
 - **`no_record` is expected**, not an error. Treat it as a branch: Rithmo has no confident
@@ -121,7 +246,7 @@ Drain decisions whose state changed, since a cursor. Built for a polling trigger
 | field | type | required | notes |
 |---|---|---|---|
 | `since` | string | no | opaque cursor from a prior call. Omit on the first call to start "from now" (no backfill); pass `"0_"` to backfill from the start. |
-| `limit` | number | no | 1–200, default 50 |
+| `limit` | integer | no | 1–200, default 50. Out-of-range or non-integer values are rejected as a validation error, not silently clamped. |
 
 **Output**
 
@@ -130,9 +255,13 @@ Drain decisions whose state changed, since a cursor. Built for a polling trigger
   "changes": [
     {
       "decision_id": "...",
-      "answer": "...", "status": "...", "lifecycle_state": "confirmed",
+      "answer": "...",
+      "status": "open | in_progress | blocked | fulfilled | dropped | superseded",
+      "lifecycle_state": "confirmed",
       "owner": { ... }, "source": { ... },
       "decided_at": "ISO", "due_at": "ISO|null",
+      "rationale": "...|null", "conditions": "...|null",
+      "director": "...|null",  "context": {...}|null,
       "changed_at": "ISO"
     }
   ],
@@ -141,7 +270,24 @@ Drain decisions whose state changed, since a cursor. Built for a polling trigger
 }
 ```
 
-Includes reversals — a decision going `dropped` or `superseded` is a change.
+Each change carries the **same record core as `query_decision`'s `found`** — including
+`rationale`, `conditions`, `director`, and `context`. It does **not** carry `supersedes`,
+`spine`, or `confidence`; those are `query_decision`-only.
+
+**`status` is wider here than in `found`.** Reversals are emitted as changes, so `status`
+can be `dropped` or `superseded` — values `query_decision`'s `found` never returns
+(it only resolves to live rows). If you mirror this feed into your own store, handle those
+two values explicitly.
+
+Cursor semantics:
+- **First call (no `since`)** returns `changes: []` and the current head cursor. You start
+  from now and do not replay history. `has_more` is `false`.
+- **`has_more` is `rows.length === limit`** — a full page. It can be `true` on an
+  exactly-full final page, so the next call legitimately returns zero changes. That is not
+  an error; it is how the drain terminates.
+- **When a page returns no rows, `cursor` is echoed back unchanged**, so re-polling with
+  it is safe and idempotent.
+- Ordering is by `(changed_at, decision_id)`.
 
 ### `whoami`
 
@@ -156,8 +302,17 @@ Every request carries a per-organization service token as a Bearer header:
 Authorization: Bearer rmcp_...
 ```
 
-The token resolves to exactly one organization; every result is scoped to that org. Keep
-it in a secret/credential store, never in code.
+The token resolves to exactly one organization and must carry the `mcp:read` scope; every
+result is scoped to that org. Keep it in a secret/credential store, never in code.
+
+A request with no token, or an unknown token, is rejected with `401`. There is no
+anonymous access.
+
+## Registry
+
+Rithmo's MCP server is described by [`server.json`](./server.json) in this repo, under the
+registry identity **`ai.rithmo/rithmo`** (version `0.1.0`). Full docs live at
+<https://rithmo.ai/mcp>.
 
 ## Deployment model
 

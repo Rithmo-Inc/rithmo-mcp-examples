@@ -9,7 +9,10 @@
       "name": "When clicking Test",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [260, 300]
+      "position": [
+        260,
+        300
+      ]
     },
     {
       "parameters": {
@@ -29,11 +32,14 @@
       "name": "Set question",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [480, 300]
+      "position": [
+        480,
+        300
+      ]
     },
     {
       "parameters": {
-        "endpointUrl": "https://mcp.rithmo.ai/api/mcp",
+        "endpointUrl": "https://app.rithmo.ai/api/mcp",
         "serverTransport": "httpStreamable",
         "authentication": "bearerAuth",
         "tool": {
@@ -48,7 +54,10 @@
       "name": "Rithmo: query_decision",
       "type": "@n8n/n8n-nodes-langchain.mcpClient",
       "typeVersion": 1.1,
-      "position": [720, 300],
+      "position": [
+        720,
+        300
+      ],
       "credentials": {
         "httpBearerAuth": {
           "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
@@ -60,13 +69,20 @@
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.structuredContent.result }}",
-              "rightValue": "found",
-              "operator": { "type": "string", "operation": "equals" }
+              "leftValue": "={{ $json.structuredContent.result === \"found\" || ($json.structuredContent.result === \"found_record\" && $json.structuredContent.subject.currentAnswer !== null && String($json.structuredContent.subject.currentAnswer).trim() !== \"\") }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -74,10 +90,14 @@
         "options": {}
       },
       "id": "a1000000-0000-4000-8000-000000000004",
-      "name": "IF decision found",
+      "name": "IF usable answer on record",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [960, 300]
+      "position": [
+        960,
+        300
+      ],
+      "notes": "Proceeds on found, or on found_record ONLY when subject.currentAnswer is a non-null, non-blank string. A found_record with no answer text is on record but not actionable, so it holds."
     },
     {
       "parameters": {},
@@ -85,40 +105,137 @@
       "name": "Proceed (act on the decision)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1200, 200]
+      "position": [
+        1420,
+        200
+      ]
     },
     {
       "parameters": {},
       "id": "a1000000-0000-4000-8000-000000000006",
-      "name": "no_record (pause / ask a human)",
+      "name": "Hold (no answer to act on)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [1200, 400]
+      "position": [
+        1180,
+        400
+      ],
+      "notes": "Reached by no_record, and by found_record with a null/blank currentAnswer. On no_record, structuredContent.record may carry a typed refusal whose premise_check.safe_to_proceed is always false. Do not act."
     },
     {
       "parameters": {
-        "content": "## Rithmo: query_decision before acting\n\n1. In **Rithmo: query_decision**, set the MCP Endpoint URL and an **HTTP Bearer Auth** credential holding your `rmcp_...` token (Server Transport = HTTP Streamable).\n2. The **IF** node branches on `{{ $json.structuredContent.result }} == \"found\"`.\n3. Replace the two NoOp nodes with your real actions.\n\n✓ Verified: imported and executed in n8n (both branches). See n8n/README.md.",
-        "height": 260,
+        "content": "## Rithmo: query_decision before acting\n\n1. In **Rithmo: query_decision**, set the MCP Endpoint URL and an **HTTP Bearer Auth** credential holding your `rmcp_...` token (Server Transport = HTTP Streamable).\n2. `query_decision` returns THREE result variants: `found`, `found_record`, and `no_record`.\n   Do NOT branch on `result == \"found\"` alone - that sends valid `found_record` answers down the hold path.\n3. The **IF** node proceeds only on a USABLE answer: `found`, or `found_record` whose `subject.currentAnswer` is non-null and non-blank. A `found_record` can name a subject that is genuinely on record while carrying no answer text - that holds.\n4. **Extract answer** normalises the two shapes: `found` -> `answer`, `found_record` -> `subject.currentAnswer`.\n5. On `no_record`, `structuredContent.record` may carry a typed refusal (`closed` / `no_record` / `not_observed`) whose `premise_check.safe_to_proceed` is always false. Hold - do not act.\n6. Replace the NoOp nodes with your real actions.",
+        "height": 470,
         "width": 380
       },
       "id": "a1000000-0000-4000-8000-000000000007",
       "name": "Setup notes",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [260, 460]
+      "position": [
+        260,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "answer",
+              "type": "string",
+              "value": "={{ $json.structuredContent.result === \"found\" ? $json.structuredContent.answer : $json.structuredContent.subject.currentAnswer }}"
+            },
+            {
+              "id": "a2",
+              "name": "answer_source",
+              "type": "string",
+              "value": "={{ $json.structuredContent.result }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Extract answer (found | found_record)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1180,
+        200
+      ],
+      "notes": "Reached only when the IF confirmed a usable answer. found -> answer ; found_record -> subject.currentAnswer (already checked non-null)."
     }
   ],
   "connections": {
-    "When clicking Test": { "main": [[{ "node": "Set question", "type": "main", "index": 0 }]] },
-    "Set question": { "main": [[{ "node": "Rithmo: query_decision", "type": "main", "index": 0 }]] },
-    "Rithmo: query_decision": { "main": [[{ "node": "IF decision found", "type": "main", "index": 0 }]] },
-    "IF decision found": {
+    "When clicking Test": {
       "main": [
-        [{ "node": "Proceed (act on the decision)", "type": "main", "index": 0 }],
-        [{ "node": "no_record (pause / ask a human)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Set question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set question": {
+      "main": [
+        [
+          {
+            "node": "Rithmo: query_decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rithmo: query_decision": {
+      "main": [
+        [
+          {
+            "node": "IF usable answer on record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract answer (found | found_record)": {
+      "main": [
+        [
+          {
+            "node": "Proceed (act on the decision)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF usable answer on record": {
+      "main": [
+        [
+          {
+            "node": "Extract answer (found | found_record)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Hold (no answer to act on)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
-  "settings": { "executionOrder": "v1" },
-  "meta": { "templatecredsSetupCompleted": false }
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templatecredsSetupCompleted": false
+  }
 }

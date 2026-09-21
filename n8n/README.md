@@ -12,7 +12,7 @@ MCP tool deterministically as a normal workflow step (no AI Agent / no LLM in th
 
 | Field | Value |
 |---|---|
-| MCP Endpoint URL | your Rithmo MCP URL, e.g. `https://mcp.rithmo.ai/api/mcp` |
+| MCP Endpoint URL | `https://app.rithmo.ai/api/mcp` (Rithmo Cloud) |
 | Server Transport | **HTTP Streamable** |
 | Authentication | **Bearer Token** → your `rmcp_...` service token |
 
@@ -22,16 +22,50 @@ Store the token in an n8n **credential**, not inline. The node's tool list shoul
 **2. Pattern A — look up a decision before acting**
 
 ```
-[trigger] → [MCP Client: query_decision] → [IF result == "found"] ─true→  [proceed]
-                                                                   └false→ [handle no_record]
+[trigger] → [MCP Client: query_decision] → [IF usable answer on record] ─true→ [extract answer] → [proceed]
+                                                                        └false→ [hold: no answer to act on]
 ```
 
+`query_decision` returns **three** result variants — `found`, `found_record`, and
+`no_record`. `found` and `found_record` are both real answers, but a `found_record` can
+name a subject that is on record while carrying **no answer text**.
+
+> ⚠️ **Gate on a usable answer, not on the result value.**
+> Branching on `result == "found"` alone discards valid `found_record` answers.
+> Branching on `["found","found_record"]` alone lets a null-answer `found_record` reach
+> your Proceed path with nothing to act on. The IF below checks both.
+
 - MCP Client → **Tool:** `query_decision`, **Input Mode:** JSON,
-  parameters: `{ "question": "{{ $json.question }}" }` (optional `type`, `owner`, `area`).
-- IF node → condition: `{{ $json.structuredContent.result }}` **equals** `found`.
-  (The MCP Client node returns the tool result under **`structuredContent`**.)
-- `found` branch: use `{{ $json.structuredContent.answer }}`, `.status`, `.owner`, `.source`.
-  `no_record` branch: pause, route to a human, or use a safe default.
+  parameters: `{ "question": "{{ $json.question }}" }` (optional `type`, `owner`, `area`,
+  `surface`).
+- IF node → **Boolean → is true** on:
+  ```
+  {{ $json.structuredContent.result === "found"
+     || ($json.structuredContent.result === "found_record"
+         && $json.structuredContent.subject.currentAnswer !== null
+         && String($json.structuredContent.subject.currentAnswer).trim() !== "") }}
+  ```
+  (The MCP Client node returns the tool result under **`structuredContent`**. The `&&`
+  short-circuits, so `subject` is only dereferenced when the result is `found_record`.)
+- **Extract answer** (a Set node) normalises the two answer shapes, because they hold the
+  answer in different places:
+  ```
+  {{ $json.structuredContent.result === "found"
+       ? $json.structuredContent.answer
+       : $json.structuredContent.subject.currentAnswer }}
+  ```
+  `found` also gives you `.status`, `.owner`, `.source`, `.rationale`, `.conditions`,
+  `.director`, `.context`, `.supersedes`, `.spine`, `.confidence`.
+  `found_record` gives you `.subject` (`label`, `state`, `currentAnswer`) and an optional
+  `.observation`.
+- **Hold branch** — reached by `no_record` *and* by a `found_record` whose
+  `subject.currentAnswer` is null or blank. Pause, route to a human, or use a safe default.
+  `{{ $json.structuredContent.record }}` may carry a typed refusal — `closed` (with a
+  `disposition`), `no_record` (with a `reason`), or `not_observed` (with
+  `unobserved_surfaces`). Its `premise_check.safe_to_proceed` is **always false** when
+  present; it is a held marker, not a condition to test. A `reason` starting
+  `record_unavailable:` is a transient read failure — retry rather than treating it as
+  "no".
 
 **3. Pattern B — react to decisions changing**
 
@@ -62,8 +96,10 @@ Store the token in an n8n **credential**, not inline. The node's tool list shoul
 [`query_decision.workflow.json`](./query_decision.workflow.json) is a starter workflow for
 Pattern A.
 
-> ✓ **Verified.** This workflow was imported **and executed** in n8n (built-in **MCP Client**
-> node, `@n8n/n8n-nodes-langchain.mcpClient` v1.1) against a live Rithmo MCP server — both the
-> `found` and `no_record` branches ran successfully. You still create the **HTTP Bearer Auth**
-> credential (holding your `rmcp_...` token) in your own n8n instance and select it on the
-> node; credentials never travel in a workflow export.
+> **Provenance.** An earlier revision of this workflow was imported and executed in n8n
+> (built-in **MCP Client** node, `@n8n/n8n-nodes-langchain.mcpClient` v1.1) against a live
+> Rithmo MCP server, exercising the `found` and `no_record` branches. The branching has
+> since been corrected to handle `found_record` and an **Extract answer** node was added,
+> so re-run it in your own instance before relying on it. You create the **HTTP Bearer
+> Auth** credential (holding your `rmcp_...` token) in your own n8n instance and select it
+> on the node; credentials never travel in a workflow export.
