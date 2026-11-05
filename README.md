@@ -1,6 +1,6 @@
 # Connect your agent to Rithmo
 
-Rithmo governs the AI agents your company runs. Each agent connects to Rithmo's MCP server. Once it is
+Rithmo is the fact-checker for your company's AI agents. Each agent connects to Rithmo's MCP server. Once it is
 connected, Rithmo gives the agent its steps for every run over that connection, so you don't write them
 into the agent yourself.
 
@@ -21,5 +21,5 @@ use the address we give you.
 ## After you connect
 
 - The agent appears on the **Agents** tab in Rithmo.
-- It does no real work until someone in your company takes it live there.
+- Until someone in your company takes it live there, Rithmo tells it to report its setup and stop.
 - One agent running in two assistants counts as two agents.
