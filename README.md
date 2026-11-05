@@ -24,9 +24,8 @@ cp .env.example .env      # then edit .env
 
 Set two values in `.env`:
 
-- `RITHMO_MCP_URL` — the MCP endpoint of a Rithmo instance. Rithmo Cloud is
-  `https://app.rithmo.ai/api/mcp`; a self-hosted deployment exposes the same server at
-  your own address.
+- `RITHMO_MCP_URL` — the MCP endpoint of your Rithmo deployment: your Rithmo address
+  followed by `/api/mcp`.
 - `RITHMO_MCP_TOKEN` — a per-organization Rithmo MCP service token (read-only, scoped to
   one org, carrying the `mcp:read` scope).
 
@@ -316,9 +315,9 @@ registry identity **`ai.rithmo/rithmo`** (version `0.1.0`). Full docs live at
 
 ## Deployment model
 
-The `RITHMO_MCP_URL` above points at **Rithmo Cloud**. Self-hosted Rithmo deployments
-expose the **same** MCP server at the customer's own address — same tools, same contract,
-different host.
+Rithmo is deployed in your own cloud environment, and the MCP server runs at your own
+address. Where Rithmo operates an instance for you, it runs at the address we give you —
+same tools, same contract.
 
 ## Using it from n8n
 

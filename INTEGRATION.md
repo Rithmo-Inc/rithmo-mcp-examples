@@ -37,7 +37,7 @@ There is no self-serve signup yet. To connect:
    interface for your organization.
 2. **We provision a token** — we create a **per-organization service token** (read-only,
    scoped to exactly your org) and give you:
-   - an **MCP endpoint URL** (Rithmo Cloud, or your self-hosted address), and
+   - an **MCP endpoint URL** (your Rithmo address + `/api/mcp`), and
    - the **token** (a `rmcp_...` string, shown once).
 3. **You connect** — drop the URL + token into your MCP client or n8n (below).
 
@@ -57,7 +57,7 @@ ingested. `list_decision_changes` reads the live record directly.
 
 The server speaks MCP over **Streamable HTTP**, authenticated with a **Bearer token**.
 
-- **Endpoint:** `https://app.rithmo.ai/api/mcp` (Rithmo Cloud)
+- **Endpoint:** `https://<your-rithmo-address>/api/mcp`
 - **Transport:** HTTP Streamable
 - **Auth header:** `Authorization: Bearer rmcp_...` (token must carry the `mcp:read` scope)
 
@@ -248,9 +248,10 @@ Full setup and an importable, verified workflow are in [`n8n/`](./n8n).
 
 ## Deployment model
 
-The endpoint points at **Rithmo Cloud**, or — for self-hosted Rithmo — the **same** MCP
-server at your own address. Same tools, same contract, different host. Self-hosted keeps the
-decision record inside your environment; the token and access control work identically.
+Rithmo is deployed in your own cloud environment, so the endpoint is your own address and the
+decision record stays inside your environment. Where Rithmo operates an instance for you, the
+endpoint is the address we give you. Same tools, same contract; the token and access control
+work identically.
 
 ---
 

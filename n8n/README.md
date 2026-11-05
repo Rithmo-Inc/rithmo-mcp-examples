@@ -12,7 +12,7 @@ MCP tool deterministically as a normal workflow step (no AI Agent / no LLM in th
 
 | Field | Value |
 |---|---|
-| MCP Endpoint URL | `https://app.rithmo.ai/api/mcp` (Rithmo Cloud) |
+| MCP Endpoint URL | `https://<your-rithmo-address>/api/mcp` |
 | Server Transport | **HTTP Streamable** |
 | Authentication | **Bearer Token** → your `rmcp_...` service token |
 
