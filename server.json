@@ -3,7 +3,7 @@
   "name": "ai.rithmo/rithmo",
   "title": "Rithmo",
   "description": "AI agent governance with resolved business context, current decisions, provenance, and supersession.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "websiteUrl": "https://rithmo.ai/mcp",
   "repository": {
     "url": "https://github.com/Rithmo-Inc/rithmo-mcp-examples",
@@ -22,8 +22,8 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer <token>, using the read-only per-organization Rithmo MCP service token issued to you. Requires the mcp:read scope.",
-          "isRequired": true,
+          "description": "Bearer <token>, using your agent's access token from Rithmo. ChatGPT and Claude agents sign in with OAuth instead.",
+          "isRequired": false,
           "isSecret": true,
           "format": "string"
         }
